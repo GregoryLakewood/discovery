@@ -3,6 +3,7 @@
 #![no_std]
 
 use aux5::{Delay, DelayMs, LedArray, OutputSwitch, entry};
+use volatile::Volatile;
 
 #[entry]
 fn main() -> ! {

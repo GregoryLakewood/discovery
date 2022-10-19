@@ -5,11 +5,16 @@
 #[allow(unused_imports)]
 use aux6::{entry, iprint, iprintln};
 
-#[entry]
+/*#[entry]
 fn main() -> ! {
     let mut itm = aux6::init();
 
     iprintln!(&mut itm.stim[0], "Hello, world!");
 
     loop {}
+}*/
+
+#[entry]
+fn main() -> ! {
+    panic!("Hello, world!");
 }
