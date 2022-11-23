@@ -15,11 +15,11 @@ use stm32f3_discovery::{
     stm32f3xx_hal::{
         i2c::I2c,
         prelude::*,
-        stm32::{self, I2C1},
+        stm32::{self, I2C1}, gpio::{gpiob::{PB6, PB7}, AF4},
     },
 };
 
-pub fn init() -> (&'static i2c1::RegisterBlock, Delay, ITM) {
+pub fn init() -> (&'static i2c1::RegisterBlock, Delay, ITM, Lsm303dlhc<I2c<I2C1, (PB6<AF4>, PB7<AF4>)>>) {
     let cp = cortex_m::Peripherals::take().unwrap();
     let dp = stm32::Peripherals::take().unwrap();
 
@@ -34,9 +34,9 @@ pub fn init() -> (&'static i2c1::RegisterBlock, Delay, ITM) {
 
     let i2c = I2c::new(dp.I2C1, (scl, sda), 400.khz(), clocks, &mut rcc.apb1);
 
-    Lsm303dlhc::new(i2c).unwrap();
+    let lsm = Lsm303dlhc::new(i2c).unwrap();
 
     let delay = Delay::new(cp.SYST, clocks);
 
-    unsafe { (&mut *(I2C1::ptr() as *mut _), delay, cp.ITM) }
+    unsafe { (&mut *(I2C1::ptr() as *mut _), delay, cp.ITM, lsm) }
 }
