@@ -6,6 +6,7 @@ use core::fmt::{self, Write};
 
 #[allow(unused_imports)]
 use aux11::{entry, iprint, iprintln, usart1};
+use heapless::Vec;
 
 macro_rules! uprint {
     ($serial:expr, $($arg:tt)*) => {
@@ -33,10 +34,8 @@ impl fmt::Write for SerialPort {
         for letter in s.bytes() {
             // wait until it's safe to write to TDR
             while self.usart1.isr.read().txe().bit_is_clear() {}
-    
-            self.usart1
-                .tdr
-                .write(|w| w.tdr().bits(u16::from(letter)));
+
+            self.usart1.tdr.write(|w| w.tdr().bits(u16::from(letter)));
         }
         Ok(())
     }
@@ -48,58 +47,40 @@ fn main() -> ! {
 
     let mut serial = SerialPort { usart1 };
 
-    uprintln!(serial, "The answer is {}", 40 + 2);
+    // A buffer with 32 bytes of capacity
+    let mut buffer: Vec<u8, 32> = Vec::new();
 
-    loop {}
-}
+    loop {
+        // TODO Receive a user request. Each user request ends with ENTER
+        // NOTE `buffer.push` returns a `Result`. Handle the error by responding
+        // with an error message.
 
-/* #![no_main]
-#![no_std]
+        while serial.usart1.isr.read().rxne().bit_is_clear() {}
 
-#[allow(unused_imports)]
-use aux11::{entry, iprint, iprintln, usart1::RegisterBlock};
+        let byte = serial.usart1.rdr.read().rdr().bits() as u8;
 
-const TEXT: &str = "The quick brown fox jumps over the lazy dog.";
+        match byte {
+            b'\r' => {
+                uprintln!(serial, "");
+                for letter in buffer.iter().rev() {
+                    // wait until it's safe to write to TDR
+                    while serial.usart1.isr.read().txe().bit_is_clear() {}
+                    serial.usart1.tdr.write(|w| w.tdr().bits(u16::from(*letter)));
+                }
+                uprintln!(serial, "");
+                buffer.clear();
+            },
+            _ => {
+                if buffer.push(byte).is_err() {
+                    uprintln!(serial, "Buffer overflow. Reseting.");
+                    buffer.clear();
+                }
+                // Echo the data
+                while serial.usart1.isr.read().txe().bit_is_clear() {}
+                serial.usart1.tdr.write(|w| w.tdr().bits(u16::from(byte)));
+            },
+        }
 
-#[entry]
-fn main() -> ! {
-    let (usart1, _mono_timer, _itm) = aux11::init();
-
-    // Send a string
-    for letter in TEXT.encode_utf16() {
-        usart1.tdr.write(|w| w.tdr().bits(letter));
+        // TODO Send back the reversed string
     }
-
-    // Send a single character
-    usart1
-        .tdr
-        .write(|w| w.tdr().bits(u16::from(b'X')) );
-
-    loop {}
 }
-
-//#[entry]
-fn main2() -> ! {
-    let (usart1, mono_timer, mut itm) = aux11::init();
-
-    let instant = mono_timer.now();
-    // Send a string
-    for byte in b"The quick brown fox jumps over the lazy dog.".iter() {
-        // wait until it's safe to write to TDR
-        while usart1.isr.read().txe().bit_is_clear() {} // <- NEW!
-
-        usart1
-            .tdr
-            .write(|w| w.tdr().bits(u16::from(*byte)));
-    }
-    let elapsed = instant.elapsed(); // in ticks
-
-    iprintln!(
-        &mut itm.stim[0],
-        "`for` loop took {} ticks ({} us)",
-        elapsed,
-        elapsed as f32 / mono_timer.frequency().0 as f32 * 1e6
-    );
-
-    loop {}
-} */
